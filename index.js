@@ -50,37 +50,34 @@ async function initBot() {
   const model = new ChatOpenAI({ modelName: 'gpt-4o', temperature: 0 });
   const qaChain = RetrievalQAChain.fromLLM(model, retriever, { returnSourceDocuments: true });
 
-  // ✅ 일반 메시지 (예: DM에서 사용)
+  async function handleQuestion(text, say, source = "event") {
+    try {
+      const response = await qaChain.call({ query: text });
+      const reply = `📘 *운영 매뉴얼 답변:*\n${response.text}`;
+      await say(reply);
+
+      // 로그 저장
+      const today = new Date().toISOString().split('T')[0];
+      const logFile = path.join(LOG_PATH, `chatlog-${today}.txt`);
+      const logEntry = `\n[${new Date().toLocaleString()}] (${source})\nQ: ${text}\nA: ${response.text}\n`;
+      fs.appendFileSync(logFile, logEntry);
+    } catch (err) {
+      await say("⚠️ 죄송합니다. 답변 중 오류가 발생했습니다.");
+      console.error("❌ GPT 응답 에러:", err);
+    }
+  }
+
+  // ✅ 1. 일반 메시지 (DM 포함) → 멘션 없이도 작동
   app.message(async ({ message, say }) => {
     if (!message.text || message.subtype === 'bot_message') return;
-
-    const response = await qaChain.call({ query: message.text });
-    const reply = `📘 *운영 매뉴얼 답변:*\n${response.text}`;
-    await say(reply);
-
-    // 로그 저장
-    const today = new Date().toISOString().split('T')[0];
-    const logFile = path.join(LOG_PATH, `chatlog-${today}.txt`);
-    const logEntry = `\n[${new Date().toLocaleString()}]\nQ: ${message.text}\nA: ${response.text}\n`;
-    fs.appendFileSync(logFile, logEntry);
+    await handleQuestion(message.text, say, "message");
   });
 
-  // ✅ 멘션(@odditybot) 대응 이벤트 핸들러 추가
+  // ✅ 2. 멘션(@odditybot) 형태로 질문
   app.event("app_mention", async ({ event, say }) => {
-    const userQuestion = event.text.replace(/<@[^>]+>\s*/, "").trim();
-    const response = await qaChain.call({ query: userQuestion });
-    const reply = `📘 *운영 매뉴얼 답변:*\n${response.text}`;
-    await say(reply);
-
-    // 로그 저장
-    const today = new Date().toISOString().split('T')[0];
-    const logFile = path.join(LOG_PATH, `chatlog-${today}.txt`);
-    const logEntry = `\n[${new Date().toLocaleString()}]\nQ: ${event.text}\nA: ${response.text}\n`;
-    fs.appendFileSync(logFile, logEntry);
+    const userQuestion = event.text.replace(/<@[^>]+>\s*/g, "").trim();
+    await handleQuestion(userQuestion, say, "mention");
   });
 
   await app.start(process.env.PORT || 3000);
-  console.log('✅ 오디티 슬랙봇이 실행 중입니다');
-}
-
-initBot();
+  console.log('✅ 오디티 슬랙봇이 실행 중입
