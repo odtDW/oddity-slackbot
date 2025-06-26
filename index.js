@@ -80,4 +80,4 @@ async function initBot() {
   });
 
   await app.start(process.env.PORT || 3000);
-  console.log('✅ 오디티 슬랙봇이 실행 중입
+  console.log('✅ 오디티 슬랙봇이 실행 중입니다');
