@@ -1,7 +1,8 @@
-// 📁 index.js - 오디티 운영 매뉴얼 오픈북 챗봇 (Slack + 문서검색 + 로그 저장)
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
+const express = require('express');
+const { ExpressReceiver } = require('@slack/bolt');
 const { App } = require('@slack/bolt');
 const { ChatOpenAI } = require('langchain/chat_models/openai');
 const { RecursiveCharacterTextSplitter } = require('langchain/text_splitter');
@@ -12,16 +13,22 @@ const { PDFLoader } = require('langchain/document_loaders/fs/pdf');
 const { TextLoader } = require('langchain/document_loaders/fs/text');
 const { DocxLoader } = require('langchain/document_loaders/fs/docx');
 
+// ✅ ExpressReceiver를 먼저 생성합니다
+const receiver = new ExpressReceiver({
+  signingSecret: process.env.SLACK_SIGNING_SECRET,
+  endpoints: '/', // Slack Events API용 기본 엔드포인트
+});
+
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
-  signingSecret: process.env.SLACK_SIGNING_SECRET,
+  receiver,
 });
 
 const LOG_PATH = path.join(__dirname, 'logs');
 if (!fs.existsSync(LOG_PATH)) fs.mkdirSync(LOG_PATH);
 
-// ✅ Slack "challenge" URL 검증 대응 (Render용)
-app.receiver.app.post('/', (req, res) => {
+// ✅ Slack URL 검증을 위해 Express 직접 라우팅
+receiver.app.post('/', (req, res) => {
   if (req.body.type === 'url_verification') {
     return res.status(200).send(req.body.challenge);
   }
@@ -74,13 +81,11 @@ async function initBot() {
     }
   }
 
-  // ✅ 일반 메시지 (DM 포함)
   app.message(async ({ message, say }) => {
     if (!message.text || message.subtype === 'bot_message') return;
     await handleQuestion(message.text, say, "message");
   });
 
-  // ✅ 멘션 (@odditybot) 대응
   app.event("app_mention", async ({ event, say }) => {
     const userQuestion = event.text.replace(/<@[^>]+>\s*/g, "").trim();
     await handleQuestion(userQuestion, say, "mention");
