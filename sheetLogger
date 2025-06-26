@@ -1,0 +1,72 @@
+const { google } = require('googleapis');
+const fs = require('fs');
+const path = require('path');
+
+const credentials = JSON.parse(fs.readFileSync('credentials.json'));
+const auth = new google.auth.GoogleAuth({
+  credentials,
+  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+});
+const sheets = google.sheets({ version: 'v4', auth });
+
+const SPREADSHEET_ID = '📝_YOUR_SPREADSHEET_ID_📝'; // <-- Replace with real ID
+
+// 날짜별 시트 자동 생성
+async function ensureSheetExists(sheetTitle) {
+  const res = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+  const exists = res.data.sheets.some((s) => s.properties.title === sheetTitle);
+
+  if (!exists) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [
+          {
+            addSheet: {
+              properties: {
+                title: sheetTitle,
+                gridProperties: { rowCount: 1000, columnCount: 10 },
+              },
+            },
+          },
+          {
+            updateCells: {
+              rows: [
+                {
+                  values: [
+                    { userEnteredValue: { stringValue: 'Timestamp' } },
+                    { userEnteredValue: { stringValue: 'User Name' } },
+                    { userEnteredValue: { stringValue: 'Thread ID' } },
+                    { userEnteredValue: { stringValue: 'Question' } },
+                    { userEnteredValue: { stringValue: 'Answer' } },
+                    { userEnteredValue: { stringValue: 'Source' } },
+                  ],
+                },
+              ],
+              fields: '*',
+              start: { sheetId: res.data.sheets.length, rowIndex: 0, columnIndex: 0 },
+            },
+          },
+        ],
+      },
+    });
+  }
+}
+
+// 👇 로그를 시트에 추가하는 함수
+async function appendLogRow({ dateTime, userName, threadId, question, answer, source }) {
+  const sheetTitle = dateTime.split(' ')[0]; // YYYY-MM-DD
+  await ensureSheetExists(sheetTitle);
+
+  const values = [[dateTime, userName, threadId, question, answer, source]];
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${sheetTitle}!A:F`,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values },
+  });
+}
+
+module.exports = { appendLogRow };
+
