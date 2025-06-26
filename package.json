@@ -1,0 +1,18 @@
+{
+  "name": "oddity-slackbot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@slack/bolt": "^3.12.2",
+    "dotenv": "^16.0.3",
+    "fs": "^0.0.1-security",
+    "langchain": "^0.1.29",
+    "mammoth": "^1.5.2",
+    "openai": "^4.25.1",
+    "pdf-parse": "^1.1.1"
+  }
+}
+
